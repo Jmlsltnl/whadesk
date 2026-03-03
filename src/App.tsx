@@ -14,6 +14,7 @@ import Settings from "./pages/Settings";
 import QuickReplies from "./pages/QuickReplies";
 import Contacts from "./pages/Contacts";
 import Search from "./pages/Search";
+import Broadcast from "./pages/Broadcast";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./components/AuthProvider";
 
@@ -27,6 +28,7 @@ const AppRoutes = () => {
         <Route index element={<Navigate to="/app/inbox" replace />} />
         <Route path="inbox" element={<Inbox />} />
         <Route path="search" element={<Search />} />
+        <Route path="broadcast" element={<Broadcast />} />
         <Route path="resolved" element={<Resolved />} />
         <Route path="snoozed" element={<Snoozed />} />
         <Route path="stats" element={<Stats />} />
