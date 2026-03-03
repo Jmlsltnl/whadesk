@@ -18,7 +18,7 @@ export default function Inbox() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. Fetch Chats
+  // 1. Fetch Chats (HIDING RESOLVED)
   const fetchChats = async () => {
     try {
       const { data, error } = await supabase
@@ -28,6 +28,7 @@ export default function Inbox() {
           contacts (id, name, phone_number, is_blocked),
           profiles (id, first_name, last_name)
         `)
+        .neq('status', 'resolved') // HIDE RESOLVED CHATS
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
@@ -36,6 +37,8 @@ export default function Inbox() {
       // Auto-select first chat if none selected
       if (data && data.length > 0 && !activeChat) {
         setActiveChat(data[0]);
+      } else if (data && data.length === 0) {
+        setActiveChat(null);
       }
     } catch (error: any) {
       console.error('Error fetching chats:', error);
@@ -70,7 +73,6 @@ export default function Inbox() {
   useEffect(() => {
     fetchChats();
 
-    // Setup realtime listener for instant updates
     const channel = supabase.channel('public-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
         if (activeChat) fetchMessages(activeChat.id);
@@ -86,7 +88,6 @@ export default function Inbox() {
     };
   }, []);
 
-  // When active chat changes, fetch its messages
   useEffect(() => {
     if (activeChat) {
       fetchMessages(activeChat.id);
@@ -117,7 +118,6 @@ export default function Inbox() {
 
       if (error) throw error;
       
-      // Update chat's updated_at timestamp
       await supabase.from('chats')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', activeChat.id);
@@ -127,13 +127,13 @@ export default function Inbox() {
     } catch (error: any) {
       console.error('Error sending message:', error);
       showError('Failed to send message');
-      setNewMessage(messageText); // restore text
+      setNewMessage(messageText);
     } finally {
       setIsSending(false);
     }
   };
 
-  // 4. Update Chat Status (Resolve/Snooze)
+  // 4. Update Chat Status
   const updateChatStatus = async (status: string) => {
     if (!activeChat) return;
     try {
@@ -145,8 +145,13 @@ export default function Inbox() {
       if (error) throw error;
       showSuccess(`Chat marked as ${status}`);
       
-      // Update local state to reflect change instantly
-      setActiveChat({ ...activeChat, status });
+      // If resolved, clear active chat because it will be removed from the list
+      if (status === 'resolved') {
+        setActiveChat(null);
+      } else {
+        setActiveChat({ ...activeChat, status });
+      }
+      
       fetchChats();
     } catch (err: any) {
       showError('Failed to update chat status');
@@ -176,25 +181,21 @@ export default function Inbox() {
     }
   };
 
-  // 6. SEED DEMO DATA HELPER (Since DB is empty initially)
   const seedDemoData = async () => {
     if (!user) return showError("Must be logged in");
     try {
       showSuccess("Generating demo data...");
       
-      // Create Contact
       const { data: contact, error: contactErr } = await supabase.from('contacts')
         .insert({ phone_number: '+1 555 ' + Math.floor(Math.random() * 10000), name: 'Demo Customer' })
         .select().single();
       if (contactErr) throw contactErr;
 
-      // Create Chat
       const { data: chat, error: chatErr } = await supabase.from('chats')
         .insert({ contact_id: contact.id, assigned_to: user.id })
         .select().single();
       if (chatErr) throw chatErr;
 
-      // Create Messages
       await supabase.from('messages').insert([
         { chat_id: chat.id, content: 'Hello, I have a question about my account.', sender_type: 'customer' },
         { chat_id: chat.id, content: 'Hi! I would be happy to help you with that.', sender_type: 'agent', sender_id: user.id }
@@ -204,20 +205,15 @@ export default function Inbox() {
       fetchChats();
     } catch (error: any) {
       console.error(error);
-      showError("Failed to seed data. Did you run the SQL schema?");
+      showError("Failed to seed data.");
     }
   };
 
-  // Format time helper
   const formatTime = (isoString: string) => {
     if (!isoString) return '';
     const date = new Date(isoString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
-
-  // ==========================================
-  // RENDER HELPERS
-  // ==========================================
 
   if (loadingChats) {
     return (
@@ -233,9 +229,9 @@ export default function Inbox() {
         <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mb-6 text-indigo-300">
           <MessageSquarePlus size={48} />
         </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">No active chats yet</h2>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">No active chats</h2>
         <p className="text-slate-500 mb-8 max-w-md">
-          Your inbox is empty. When customers send messages to your WhatsApp number, they will appear right here.
+          You're all caught up! When new messages arrive, they will appear here.
         </p>
         <button 
           onClick={seedDemoData}
@@ -308,7 +304,6 @@ export default function Inbox() {
       {/* COLUMN 2: Chat Window */}
       {activeChat ? (
         <div className="flex-1 flex flex-col bg-white">
-          {/* Chat Header */}
           <div className="h-16 border-b border-slate-100 px-6 flex items-center justify-between bg-white shadow-sm z-10">
             <div className="flex items-center space-x-4">
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-sm">
@@ -321,7 +316,6 @@ export default function Inbox() {
             </div>
           </div>
 
-          {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
             {loadingMessages ? (
               <div className="flex justify-center items-center h-full">
@@ -353,23 +347,11 @@ export default function Inbox() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
           <div className="p-4 bg-white border-t border-slate-100 z-10">
             {activeChat.contacts?.is_blocked ? (
               <div className="bg-red-50 text-red-600 p-4 rounded-2xl flex items-center justify-center space-x-2 border border-red-100">
                 <Ban size={18} />
                 <span className="font-medium">You have blocked this contact. Unblock to send messages.</span>
-              </div>
-            ) : activeChat.status === 'resolved' ? (
-              <div className="bg-slate-50 text-slate-600 p-4 rounded-2xl flex items-center justify-center space-x-2 border border-slate-200">
-                <CheckCircle size={18} />
-                <span className="font-medium">This chat is resolved. Reopen to send a message.</span>
-                <button 
-                  onClick={() => updateChatStatus('open')}
-                  className="ml-4 text-sm font-bold text-indigo-600 hover:text-indigo-800 underline"
-                >
-                  Reopen
-                </button>
               </div>
             ) : (
               <div className="flex items-end space-x-3 bg-slate-50 p-2 rounded-2xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-sm">
@@ -431,12 +413,7 @@ export default function Inbox() {
               <div className="grid grid-cols-2 gap-2">
                 <button 
                   onClick={() => updateChatStatus('resolved')}
-                  disabled={activeChat.status === 'resolved'}
-                  className={`flex flex-col items-center justify-center py-3 border rounded-xl transition-colors shadow-sm ${
-                    activeChat.status === 'resolved' 
-                      ? 'bg-green-50 border-green-200 text-green-600' 
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-green-500 hover:text-green-600'
-                  }`}
+                  className="flex flex-col items-center justify-center py-3 border rounded-xl transition-colors shadow-sm bg-white border-slate-200 text-slate-600 hover:border-green-500 hover:text-green-600"
                 >
                   <CheckCircle size={20} className="mb-1" />
                   <span className="text-xs font-semibold">Resolve</span>
@@ -472,22 +449,6 @@ export default function Inbox() {
                   </div>
                 </div>
                 <UserCheck size={16} className="text-slate-400" />
-              </button>
-            </div>
-
-            {/* Danger Zone */}
-            <div className="pt-4 border-t border-slate-200">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Danger Zone</h3>
-              <button 
-                onClick={toggleBlockStatus}
-                className={`w-full flex items-center space-x-2 p-3 rounded-xl transition-colors font-medium text-sm border shadow-sm ${
-                  activeChat.contacts?.is_blocked 
-                    ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200' 
-                    : 'bg-white text-red-600 border-red-100 hover:bg-red-50 hover:border-red-200'
-                }`}
-              >
-                <Ban size={16} />
-                <span>{activeChat.contacts?.is_blocked ? 'Unblock Contact' : 'Block Contact'}</span>
               </button>
             </div>
           </div>

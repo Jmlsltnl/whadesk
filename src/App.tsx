@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Login from "./pages/Login";
 import Inbox from "./pages/Inbox";
+import Resolved from "./pages/Resolved";
+import Agents from "./pages/Agents";
 import Stats from "./pages/Stats";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./components/AuthProvider";
@@ -19,7 +21,9 @@ const AppRoutes = () => {
       <Route path="/app" element={<DashboardLayout />}>
         <Route index element={<Navigate to="/app/inbox" replace />} />
         <Route path="inbox" element={<Inbox />} />
+        <Route path="resolved" element={<Resolved />} />
         <Route path="stats" element={<Stats />} />
+        <Route path="agents" element={<Agents />} />
         <Route path="*" element={<div className="p-8 text-slate-500">Feature coming soon...</div>} />
       </Route>
       <Route path="*" element={<NotFound />} />
