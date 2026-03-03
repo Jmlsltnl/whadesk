@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, Paperclip, Ban, CheckCircle, Clock, UserCheck, MessageSquarePlus, Loader2, ChevronDown, StickyNote, MessageSquare, Zap, RefreshCcw, UserPlus, Filter } from 'lucide-react';
+import { Search, Send, Paperclip, Ban, CheckCircle, Clock, UserCheck, MessageSquarePlus, Loader2, ChevronDown, StickyNote, MessageSquare, Zap, RefreshCcw, UserPlus, Image as ImageIcon, File as FileIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/components/AuthProvider';
 import { showSuccess, showError } from '@/utils/toast';
@@ -47,7 +47,6 @@ export default function Inbox() {
       setChats(data || []);
       
       if (data && data.length > 0 && !activeChat) {
-        // Find first chat based on filter
         const initial = inboxFilter === 'mine' 
           ? data.find(c => c.assigned_to === user?.id) || data[0]
           : data[0];
@@ -116,24 +115,22 @@ export default function Inbox() {
   const simulateCustomerReply = async () => {
     if (!activeChat) return;
     try {
-      const replies = [
-        "That sounds great, thanks!",
-        "Can you help me with something else?",
-        "When will my order arrive?",
-        "I'm not sure I understand.",
-        "Perfect, I'll wait for your update."
-      ];
-      const randomMsg = replies[Math.floor(Math.random() * replies.length)];
+      const types = ['text', 'image', 'file'];
+      const type = types[Math.floor(Math.random() * types.length)];
       
+      let content = "Hello! I need help with my order.";
+      if (type === 'image') content = "ATTACHMENT_IMAGE:https://images.unsplash.com/photo-1512314889357-e157c22f938d?w=400";
+      if (type === 'file') content = "ATTACHMENT_FILE:Receipt_Invoice_#4920.pdf";
+
       const { error } = await supabase.from('messages').insert({
         chat_id: activeChat.id,
-        content: randomMsg,
+        content,
         sender_type: 'customer'
       });
       if (error) throw error;
 
       await supabase.from('chats').update({ updated_at: new Date().toISOString(), unread_count: (activeChat.unread_count || 0) + 1 }).eq('id', activeChat.id);
-      showSuccess("Simulated incoming message");
+      showSuccess(`Simulated incoming ${type}`);
       fetchMessages(activeChat.id);
     } catch (err) {
       showError("Simulation failed");
@@ -145,7 +142,7 @@ export default function Inbox() {
     fetchAgents();
     fetchQuickReplies();
 
-    const channel = supabase.channel('public-changes-v6')
+    const channel = supabase.channel('public-changes-v7')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
         if (activeChat) fetchMessages(activeChat.id);
         fetchChats();
@@ -226,6 +223,36 @@ export default function Inbox() {
     const passesFilter = inboxFilter === 'all' || chat.assigned_to === user?.id;
     return passesSearch && passesFilter && chat.status === 'open';
   });
+
+  const renderMessageContent = (content: string) => {
+    if (content.startsWith('ATTACHMENT_IMAGE:')) {
+      const url = content.replace('ATTACHMENT_IMAGE:', '');
+      return (
+        <div className="rounded-xl overflow-hidden shadow-sm border border-slate-200 mt-2 bg-slate-50">
+          <img src={url} alt="Attachment" className="max-w-full h-auto object-cover max-h-[300px]" />
+          <div className="p-2 bg-white flex items-center space-x-2 text-[10px] text-slate-500 font-bold uppercase">
+            <ImageIcon size={12} />
+            <span>Image received</span>
+          </div>
+        </div>
+      );
+    }
+    if (content.startsWith('ATTACHMENT_FILE:')) {
+      const filename = content.replace('ATTACHMENT_FILE:', '');
+      return (
+        <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-200 mt-2">
+          <div className="bg-white p-2 rounded-lg text-indigo-600 shadow-sm">
+            <FileIcon size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-slate-800 truncate">{filename}</p>
+            <p className="text-[10px] text-slate-400">PDF Document • 1.2 MB</p>
+          </div>
+        </div>
+      );
+    }
+    return <p className="text-sm leading-relaxed whitespace-pre-wrap">{content}</p>;
+  };
 
   return (
     <div className="flex h-full w-full bg-white rounded-l-3xl shadow-sm overflow-hidden border-y border-l border-slate-200 my-2">
@@ -336,7 +363,7 @@ export default function Inbox() {
                 return (
                   <div key={msg.id} className={`flex ${isAgent ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[70%] rounded-2xl px-5 py-3 shadow-sm ${isAgent ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm'}`}>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      {renderMessageContent(msg.content)}
                       <div className={`text-[9px] mt-1 text-right ${isAgent ? 'text-indigo-200' : 'text-slate-400'}`}>{formatTime(msg.created_at)}</div>
                     </div>
                   </div>
@@ -363,6 +390,9 @@ export default function Inbox() {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <button className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                  <Paperclip size={16} />
+                </button>
               </div>
               <div className="flex items-end space-x-3 bg-slate-50 p-2 rounded-2xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-sm">
                 <textarea 

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
 import Inbox from "./pages/Inbox";
 import Resolved from "./pages/Resolved";
 import Snoozed from "./pages/Snoozed";
@@ -25,7 +26,8 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/" element={<Login />} />
       <Route path="/app" element={<DashboardLayout />}>
-        <Route index element={<Navigate to="/app/inbox" replace />} />
+        <Route index element={<Navigate to="/app/dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
         <Route path="inbox" element={<Inbox />} />
         <Route path="search" element={<Search />} />
         <Route path="broadcast" element={<Broadcast />} />

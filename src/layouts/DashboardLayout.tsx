@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { MessageSquare, BarChart2, Users, Settings, LogOut, CheckCircle2, Clock, Zap, UserSquare2, Search, Megaphone } from 'lucide-react';
+import { MessageSquare, BarChart2, Users, Settings, LogOut, CheckCircle2, Clock, Zap, UserSquare2, Search, Megaphone, Home } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/hooks/use-profile';
 
@@ -30,6 +30,19 @@ const DashboardLayout = () => {
           </div>
 
           <nav className="px-5 space-y-1.5">
+            <p className="px-4 py-3 text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] opacity-50">Overview</p>
+            <NavLink
+              to="/app/dashboard"
+              className={({ isActive }) =>
+                `flex items-center space-x-3 px-4 py-3.5 rounded-2xl transition-all duration-300 ${
+                  isActive ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-950/20 translate-x-1' : 'hover:bg-indigo-800 text-indigo-200 hover:text-white'
+                }`
+              }
+            >
+              <Home size={18} />
+              <span className="font-bold text-sm">Dashboard</span>
+            </NavLink>
+
             <p className="px-4 py-3 text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] opacity-50">Workspace</p>
             <NavLink
               to="/app/inbox"
