@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, Paperclip, Ban, CheckCircle, Clock, UserCheck, MessageSquarePlus, Loader2, ChevronDown, StickyNote, MessageSquare, Zap, RefreshCcw } from 'lucide-react';
+import { Search, Send, Paperclip, Ban, CheckCircle, Clock, UserCheck, MessageSquarePlus, Loader2, ChevronDown, StickyNote, MessageSquare, Zap, RefreshCcw, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/components/AuthProvider';
 import { showSuccess, showError } from '@/utils/toast';
@@ -26,6 +26,7 @@ export default function Inbox() {
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +35,7 @@ export default function Inbox() {
       const { data, error } = await supabase
         .from('chats')
         .select(`
-          id, status, unread_count, updated_at,
+          id, status, unread_count, updated_at, assigned_to,
           contacts (id, name, phone_number, is_blocked),
           profiles (id, first_name, last_name)
         `)
@@ -88,6 +89,32 @@ export default function Inbox() {
     }
   };
 
+  const assignAgent = async (agentId: string) => {
+    if (!activeChat) return;
+    setIsAssigning(true);
+    try {
+      const { error } = await supabase
+        .from('chats')
+        .update({ assigned_to: agentId })
+        .eq('id', activeChat.id);
+      
+      if (error) throw error;
+      showSuccess('Conversation reassigned');
+      fetchChats();
+      // Update active chat locally
+      const agent = agents.find(a => a.id === agentId);
+      setActiveChat({ 
+        ...activeChat, 
+        assigned_to: agentId, 
+        profiles: agent 
+      });
+    } catch (err) {
+      showError('Assignment failed');
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
   const simulateCustomerReply = async () => {
     if (!activeChat) return;
     try {
@@ -126,7 +153,7 @@ export default function Inbox() {
     fetchAgents();
     fetchQuickReplies();
 
-    const channel = supabase.channel('public-changes-v4')
+    const channel = supabase.channel('public-changes-v5')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
         if (activeChat) fetchMessages(activeChat.id);
         fetchChats();
@@ -309,9 +336,34 @@ export default function Inbox() {
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-sm">
                 {(activeChat.contacts?.name || '?').charAt(0).toUpperCase()}
               </div>
-              <div>
-                <h2 className="font-bold text-slate-800">{activeChat.contacts?.name || 'Unknown Contact'}</h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Online via WhatsApp</p>
+              <div className="flex flex-col">
+                <h2 className="font-bold text-slate-800 leading-tight">{activeChat.contacts?.name || 'Unknown Contact'}</h2>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Online</span>
+                  <span className="text-slate-300">•</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider flex items-center hover:text-indigo-800">
+                      {isAssigning ? <Loader2 className="animate-spin mr-1" size={10} /> : <UserPlus size={10} className="mr-1" />}
+                      <span>Assigned: {activeChat.profiles?.first_name || 'Unassigned'}</span>
+                      <ChevronDown size={10} className="ml-0.5" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="rounded-xl border-slate-100 shadow-xl w-48">
+                      <p className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase">Reassign to...</p>
+                      {agents.map(agent => (
+                        <DropdownMenuItem 
+                          key={agent.id} 
+                          onClick={() => assignAgent(agent.id)}
+                          className="px-3 py-2.5 flex items-center space-x-2 cursor-pointer"
+                        >
+                          <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold">
+                            {agent.first_name.charAt(0)}
+                          </div>
+                          <span className="text-sm font-medium">{agent.first_name} {agent.last_name}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
             <button 

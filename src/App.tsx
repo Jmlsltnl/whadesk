@@ -13,6 +13,7 @@ import Stats from "./pages/Stats";
 import Settings from "./pages/Settings";
 import QuickReplies from "./pages/QuickReplies";
 import Contacts from "./pages/Contacts";
+import Search from "./pages/Search";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./components/AuthProvider";
 
@@ -25,6 +26,7 @@ const AppRoutes = () => {
       <Route path="/app" element={<DashboardLayout />}>
         <Route index element={<Navigate to="/app/inbox" replace />} />
         <Route path="inbox" element={<Inbox />} />
+        <Route path="search" element={<Search />} />
         <Route path="resolved" element={<Resolved />} />
         <Route path="snoozed" element={<Snoozed />} />
         <Route path="stats" element={<Stats />} />

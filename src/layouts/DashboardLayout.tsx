@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { MessageSquare, BarChart2, Users, Settings, LogOut, CheckCircle2, Lock, Clock, Zap, UserSquare2 } from 'lucide-react';
+import { MessageSquare, BarChart2, Users, Settings, LogOut, CheckCircle2, Lock, Clock, Zap, UserSquare2, Search } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/hooks/use-profile';
 
@@ -41,6 +41,18 @@ const DashboardLayout = () => {
             >
               <MessageSquare size={18} />
               <span className="font-medium text-sm">Inbox</span>
+            </NavLink>
+
+            <NavLink
+              to="/app/search"
+              className={({ isActive }) =>
+                `flex items-center space-x-3 px-4 py-3 rounded-2xl transition-all duration-200 ${
+                  isActive ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-indigo-800 text-indigo-200 hover:text-white'
+                }`
+              }
+            >
+              <Search size={18} />
+              <span className="font-medium text-sm">Search</span>
             </NavLink>
 
             <NavLink
@@ -142,7 +154,7 @@ const DashboardLayout = () => {
               <div className="flex-1 overflow-hidden">
                 <p className="text-sm font-semibold text-white truncate capitalize">{displayName}</p>
                 {isAdmin && (
-                  <span className="text-[10px] bg-indigo-500 text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Admin</span>
+                  <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Admin</span>
                 )}
               </div>
               <button onClick={handleLogout} className="text-indigo-300 hover:text-white p-1 rounded-lg hover:bg-indigo-700 transition-colors">
