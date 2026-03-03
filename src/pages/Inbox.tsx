@@ -67,6 +67,18 @@ export default function Inbox() {
     }
   };
 
+  const markAsRead = async (chatId: string) => {
+    const chat = chats.find(c => c.id === chatId);
+    if (chat && chat.unread_count > 0) {
+      try {
+        await supabase.from('chats').update({ unread_count: 0 }).eq('id', chatId);
+        setChats(prev => prev.map(c => c.id === chatId ? { ...c, unread_count: 0 } : c));
+      } catch (err) {
+        console.error('Failed to clear unread count', err);
+      }
+    }
+  };
+
   useEffect(() => {
     fetchChats();
 
@@ -88,6 +100,7 @@ export default function Inbox() {
   useEffect(() => {
     if (activeChat) {
       fetchMessages(activeChat.id);
+      markAsRead(activeChat.id);
     }
   }, [activeChat?.id]);
 
@@ -152,6 +165,31 @@ export default function Inbox() {
     }
   };
 
+  const toggleBlockStatus = async () => {
+    if (!activeChat) return;
+    const newBlockedState = !activeChat.contacts.is_blocked;
+    
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .update({ is_blocked: newBlockedState })
+        .eq('id', activeChat.contacts.id);
+        
+      if (error) throw error;
+      showSuccess(newBlockedState ? 'Contact blocked' : 'Contact unblocked');
+      
+      const updatedChat = {
+        ...activeChat,
+        contacts: { ...activeChat.contacts, is_blocked: newBlockedState }
+      };
+      
+      setActiveChat(updatedChat);
+      setChats(prev => prev.map(c => c.id === updatedChat.id ? updatedChat : c));
+    } catch (err) {
+      showError('Failed to update contact status');
+    }
+  };
+
   const seedDemoData = async () => {
     if (!user) return showError("Must be logged in");
     try {
@@ -163,13 +201,12 @@ export default function Inbox() {
       if (contactErr) throw contactErr;
 
       const { data: chat, error: chatErr } = await supabase.from('chats')
-        .insert({ contact_id: contact.id, assigned_to: user.id })
+        .insert({ contact_id: contact.id, assigned_to: user.id, unread_count: 1 })
         .select().single();
       if (chatErr) throw chatErr;
 
       await supabase.from('messages').insert([
-        { chat_id: chat.id, content: 'Hello, I have a question about my account.', sender_type: 'customer' },
-        { chat_id: chat.id, content: 'Hi! I would be happy to help you with that.', sender_type: 'agent', sender_id: user.id }
+        { chat_id: chat.id, content: 'Hello, I have a question about my account.', sender_type: 'customer' }
       ]);
 
       showSuccess("Demo data injected!");
@@ -186,7 +223,6 @@ export default function Inbox() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Filter chats based on search query
   const filteredChats = chats.filter(chat => {
     const term = searchQuery.toLowerCase();
     const nameMatch = chat.contacts?.name?.toLowerCase().includes(term);
@@ -334,9 +370,17 @@ export default function Inbox() {
 
           <div className="p-4 bg-white border-t border-slate-100 z-10">
             {activeChat.contacts?.is_blocked ? (
-              <div className="bg-red-50 text-red-600 p-4 rounded-2xl flex items-center justify-center space-x-2 border border-red-100">
-                <Ban size={18} />
-                <span className="font-medium">You have blocked this contact. Unblock to send messages.</span>
+              <div className="bg-red-50 text-red-600 p-4 rounded-2xl flex items-center justify-between space-x-2 border border-red-100">
+                <div className="flex items-center space-x-2">
+                  <Ban size={18} />
+                  <span className="font-medium">You have blocked this contact.</span>
+                </div>
+                <button 
+                  onClick={toggleBlockStatus}
+                  className="px-4 py-2 bg-white text-red-600 border border-red-200 rounded-xl hover:bg-red-50 text-sm font-bold shadow-sm transition-colors"
+                >
+                  Unblock
+                </button>
               </div>
             ) : (
               <div className="flex items-end space-x-3 bg-slate-50 p-2 rounded-2xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-sm">
@@ -434,6 +478,21 @@ export default function Inbox() {
                   </div>
                 </div>
                 <UserCheck size={16} className="text-slate-400" />
+              </button>
+            </div>
+            
+            {/* Danger Zone */}
+            <div className="pt-6 border-t border-slate-200">
+              <button 
+                onClick={toggleBlockStatus}
+                className={`w-full flex items-center justify-center space-x-2 py-3 rounded-xl transition-colors text-sm font-bold ${
+                  activeChat.contacts?.is_blocked
+                    ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100'
+                }`}
+              >
+                <Ban size={16} />
+                <span>{activeChat.contacts?.is_blocked ? 'Unblock Contact' : 'Block Contact'}</span>
               </button>
             </div>
           </div>

@@ -1,17 +1,37 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { MessageSquare, BarChart2, Users, Settings, LogOut, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
+import { supabase } from '@/integrations/supabase/client';
 
 const DashboardLayout = () => {
   const { user, signOut } = useAuth();
+  const [profileName, setProfileName] = useState('');
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', user.id)
+        .single();
+        
+      if (data) {
+        const fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim();
+        if (fullName) setProfileName(fullName);
+      }
+    };
+    
+    fetchProfile();
+  }, [user]);
 
   const handleLogout = async () => {
     await signOut();
   };
 
-  const initial = user?.email ? user.email.charAt(0).toUpperCase() : 'A';
-  const displayName = user?.email ? user.email.split('@')[0] : 'Agent';
+  const displayName = profileName || (user?.email ? user.email.split('@')[0] : 'Agent');
+  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
