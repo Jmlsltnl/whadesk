@@ -11,6 +11,8 @@ import Snoozed from "./pages/Snoozed";
 import Agents from "./pages/Agents";
 import Stats from "./pages/Stats";
 import Settings from "./pages/Settings";
+import QuickReplies from "./pages/QuickReplies";
+import Contacts from "./pages/Contacts";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./components/AuthProvider";
 
@@ -28,6 +30,8 @@ const AppRoutes = () => {
         <Route path="stats" element={<Stats />} />
         <Route path="agents" element={<Agents />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="replies" element={<QuickReplies />} />
+        <Route path="contacts" element={<Contacts />} />
         <Route path="*" element={<div className="p-8 text-slate-500">Feature coming soon...</div>} />
       </Route>
       <Route path="*" element={<NotFound />} />
