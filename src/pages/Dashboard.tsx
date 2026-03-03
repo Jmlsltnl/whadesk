@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Clock, CheckCircle2, AlertCircle, ArrowRight, TrendingUp, Users, Zap, Loader2 } from 'lucide-react';
+import { MessageSquare, Clock, CheckCircle2, AlertCircle, ArrowRight, TrendingUp, Users, Zap, Loader2, Activity } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/components/AuthProvider';
 
@@ -12,11 +12,13 @@ export default function Dashboard() {
     teamUnread: 0,
     todayResolved: 0
   });
+  const [recentEvents, setRecentEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchDashboardStats = async () => {
+    const fetchDashboardData = async () => {
       try {
+        // Stats
         const { count: myOpen } = await supabase
           .from('chats')
           .select('*', { count: 'exact', head: true })
@@ -41,6 +43,21 @@ export default function Dashboard() {
           teamUnread: teamUnread || 0,
           todayResolved: todayResolved || 0
         });
+
+        // Recent Activity (Last 5 messages)
+        const { data: events } = await supabase
+          .from('messages')
+          .select(`
+            id, content, created_at, sender_type,
+            chats (
+              contacts (name, phone_number)
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        
+        setRecentEvents(events || []);
+
       } catch (err) {
         console.error(err);
       } finally {
@@ -48,7 +65,7 @@ export default function Dashboard() {
       }
     };
 
-    fetchDashboardStats();
+    fetchDashboardData();
   }, [user]);
 
   if (loading) {
@@ -110,41 +127,79 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Recent Activity Feed */}
           <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
             <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center space-x-3">
-              <Zap size={24} className="text-indigo-600" />
-              <span>Quick Actions</span>
+              <Activity size={24} className="text-indigo-600" />
+              <span>Live Activity Feed</span>
             </h2>
-            <div className="grid grid-cols-2 gap-4">
-              <QuickActionCard 
-                icon={<Users />} 
-                title="Customer Directory" 
-                desc="Manage your WhatsApp leads"
-                onClick={() => navigate('/app/contacts')}
-              />
-              <QuickActionCard 
-                icon={<Zap />} 
-                title="Response Library" 
-                desc="Edit your canned replies"
-                onClick={() => navigate('/app/replies')}
-              />
+            <div className="space-y-4">
+              {recentEvents.length === 0 ? (
+                <p className="text-slate-400 text-center py-10 italic">No recent activity found.</p>
+              ) : (
+                recentEvents.map(event => (
+                  <div key={event.id} className="flex items-start space-x-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-white hover:border-indigo-100 transition-all">
+                    <div className={`mt-1 p-2 rounded-xl ${event.sender_type === 'agent' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                      <MessageSquare size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">
+                        {event.chats?.contacts?.name || 'Customer'}
+                      </p>
+                      <p className="text-xs text-slate-500 line-clamp-1 italic">"{event.content}"</p>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+              <button 
+                onClick={() => navigate('/app/inbox')}
+                className="w-full py-3 text-sm font-bold text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-colors"
+              >
+                View Live Inbox
+              </button>
             </div>
           </div>
 
-          <div className="bg-indigo-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
-            <div className="relative z-10">
-              <h2 className="text-2xl font-bold mb-2">Team Collaboration</h2>
-              <p className="text-indigo-200 mb-8 max-w-xs">You're currently working with {stats.todayResolved > 0 ? '5' : '0'} other agents online.</p>
-              <button 
-                onClick={() => navigate('/app/agents')}
-                className="bg-white text-indigo-900 px-6 py-3 rounded-2xl font-bold hover:bg-indigo-50 transition-colors flex items-center space-x-2 shadow-lg"
-              >
-                <span>View Team Directory</span>
-                <ArrowRight size={18} />
-              </button>
+          <div className="space-y-8">
+            <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
+              <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center space-x-3">
+                <Zap size={24} className="text-indigo-600" />
+                <span>Quick Actions</span>
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <QuickActionCard 
+                  icon={<Users />} 
+                  title="Customers" 
+                  desc="CRM Directory"
+                  onClick={() => navigate('/app/contacts')}
+                />
+                <QuickActionCard 
+                  icon={<Zap />} 
+                  title="Replies" 
+                  desc="Canned Library"
+                  onClick={() => navigate('/app/replies')}
+                />
+              </div>
             </div>
-            <div className="absolute bottom-[-20px] right-[-20px] opacity-10">
-              <Users size={200} />
+
+            <div className="bg-indigo-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
+              <div className="relative z-10">
+                <h2 className="text-2xl font-bold mb-2">Team Status</h2>
+                <p className="text-indigo-200 mb-8 max-w-xs">All systems are operational. You're doing great!</p>
+                <button 
+                  onClick={() => navigate('/app/agents')}
+                  className="bg-white text-indigo-900 px-6 py-3 rounded-2xl font-bold hover:bg-indigo-50 transition-colors flex items-center space-x-2 shadow-lg"
+                >
+                  <span>Team Directory</span>
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+              <div className="absolute bottom-[-20px] right-[-20px] opacity-10">
+                <Users size={200} />
+              </div>
             </div>
           </div>
         </div>
