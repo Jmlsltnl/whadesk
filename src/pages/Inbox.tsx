@@ -17,6 +17,7 @@ export default function Inbox() {
   const [chats, setChats] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [quickReplies, setQuickReplies] = useState<any[]>([]);
+  const [replySearch, setReplySearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeChat, setActiveChat] = useState<any | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -337,6 +338,23 @@ export default function Inbox() {
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setNewMessage(val);
+
+    // Slash command detection
+    if (val.startsWith('/')) {
+      const shortcut = val.slice(1).toLowerCase();
+      const match = quickReplies.find(r => r.shortcut.toLowerCase() === shortcut);
+      if (match) {
+        // If it's an exact match, we could auto-replace, but usually we wait for space or enter
+        // For this implementation, we'll auto-replace if it's a perfect match to keep it snappy
+        setNewMessage(match.content);
+        showSuccess(`Applied shortcut: /${match.shortcut}`);
+      }
+    }
+  };
+
   const updateChatStatus = async (status: string) => {
     if (!activeChat) return;
     try {
@@ -374,6 +392,11 @@ export default function Inbox() {
 
     return passesSearch && passesFilter && passesTag && chat.status === 'open';
   });
+
+  const filteredReplies = quickReplies.filter(r => 
+    r.title.toLowerCase().includes(replySearch.toLowerCase()) || 
+    r.shortcut.toLowerCase().includes(replySearch.toLowerCase())
+  );
 
   const renderMessageContent = (content: string) => {
     if (content.startsWith('ATTACHMENT_IMAGE:')) {
@@ -614,13 +637,33 @@ export default function Inbox() {
                       <Zap size={12} />
                       <span>Quick Replies</span>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-64 rounded-xl border-slate-200 dark:border-slate-800 shadow-xl max-h-60 overflow-y-auto dark:bg-slate-900">
-                      {quickReplies.map(reply => (
-                        <DropdownMenuItem key={reply.id} onClick={() => setNewMessage(reply.content)} className="flex flex-col items-start space-y-1 p-3 cursor-pointer dark:hover:bg-slate-800">
-                          <span className="font-bold text-slate-800 dark:text-white text-xs">{reply.title}</span>
-                          <span className="text-[10px] text-slate-400 truncate w-full">{reply.content}</span>
-                        </DropdownMenuItem>
-                      ))}
+                    <DropdownMenuContent className="w-72 rounded-xl border-slate-200 dark:border-slate-800 shadow-xl max-h-80 overflow-hidden flex flex-col dark:bg-slate-900">
+                      <div className="p-2 border-b border-slate-100 dark:border-slate-800">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                          <input 
+                            type="text" 
+                            placeholder="Search replies..." 
+                            value={replySearch}
+                            onChange={(e) => setReplySearch(e.target.value)}
+                            className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-[10px] focus:ring-1 focus:ring-indigo-500 outline-none dark:text-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="overflow-y-auto flex-1">
+                        {filteredReplies.map(reply => (
+                          <DropdownMenuItem key={reply.id} onClick={() => setNewMessage(reply.content)} className="flex flex-col items-start space-y-1 p-3 cursor-pointer dark:hover:bg-slate-800">
+                            <div className="flex items-center justify-between w-full">
+                              <span className="font-bold text-slate-800 dark:text-white text-xs">{reply.title}</span>
+                              <span className="text-[8px] font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500">/{reply.shortcut}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 truncate w-full">{reply.content}</span>
+                          </DropdownMenuItem>
+                        ))}
+                        {filteredReplies.length === 0 && (
+                          <div className="p-4 text-center text-[10px] text-slate-400 italic">No matches found</div>
+                        )}
+                      </div>
                     </DropdownMenuContent>
                   </DropdownMenu>
                   
@@ -643,9 +686,9 @@ export default function Inbox() {
                 <div className="flex items-end space-x-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-900/30 transition-all shadow-sm">
                   <textarea 
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={handleInputChange}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                    placeholder="Type a message..." 
+                    placeholder="Type a message or use /shortcut..." 
                     className="flex-1 max-h-32 min-h-[44px] bg-transparent resize-none py-3 px-2 focus:outline-none text-sm text-slate-800 dark:text-white"
                     rows={1}
                   />
