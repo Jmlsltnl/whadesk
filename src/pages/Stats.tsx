@@ -70,7 +70,9 @@ const Stats = () => {
         const { data: chatsWithAgents } = await supabase.from('chats').select('assigned_to, profiles(first_name)').not('assigned_to', 'is', null);
         const agentCounts: Record<string, number> = {};
         chatsWithAgents?.forEach(c => {
-          const name = c.profiles?.first_name || 'Unknown';
+          // Accessing the first element of the profiles array as returned by the join
+          const profiles = c.profiles as unknown as { first_name: string }[];
+          const name = profiles?.[0]?.first_name || 'Unknown';
           agentCounts[name] = (agentCounts[name] || 0) + 1;
         });
 
@@ -187,7 +189,7 @@ const StatCard = ({ icon, title, value, color }: any) => {
     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between h-36">
       <div className="flex justify-between items-start mb-4">
         <div className={`${colors[color] || colors.indigo} p-3 rounded-2xl`}>
-          {React.cloneElement(icon, { size: 24, strokeWidth: 2 })}
+          {React.cloneElement(icon as React.ReactElement<any>, { size: 24, strokeWidth: 2 })}
         </div>
       </div>
       <div>

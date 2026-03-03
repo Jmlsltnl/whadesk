@@ -243,7 +243,7 @@ function QuickActionCard({ icon, title, desc, onClick }: any) {
       className="p-5 rounded-3xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 hover:border-indigo-200 dark:hover:border-indigo-900 hover:shadow-lg transition-all text-left group"
     >
       <div className="text-indigo-600 dark:text-indigo-400 mb-4 bg-white dark:bg-slate-900 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-        {React.cloneElement(icon as React.ReactElement, { size: 20 })}
+        {React.cloneElement(icon as React.ReactElement<any>, { size: 20 })}
       </div>
       <h4 className="font-bold text-slate-800 dark:text-white mb-1">{title}</h4>
       <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{desc}</p>
