@@ -5,6 +5,7 @@ import { showSuccess, showError } from '@/utils/toast';
 
 export default function Resolved() {
   const [resolvedChats, setResolvedChats] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   const fetchResolvedChats = async () => {
@@ -57,6 +58,14 @@ export default function Resolved() {
     });
   };
 
+  // Filter based on search query
+  const filteredChats = resolvedChats.filter(chat => {
+    const term = searchQuery.toLowerCase();
+    const nameMatch = chat.contacts?.name?.toLowerCase().includes(term);
+    const phoneMatch = chat.contacts?.phone_number?.toLowerCase().includes(term);
+    return nameMatch || phoneMatch;
+  });
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-slate-50">
@@ -79,6 +88,8 @@ export default function Resolved() {
             <input 
               type="text" 
               placeholder="Search history..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm text-sm"
             />
           </div>
@@ -92,6 +103,10 @@ export default function Resolved() {
             <h3 className="text-lg font-bold text-slate-800 mb-2">No resolved chats</h3>
             <p className="text-slate-500">When you resolve conversations in your inbox, they will appear here.</p>
           </div>
+        ) : filteredChats.length === 0 ? (
+          <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm text-slate-500">
+            No history found matching "{searchQuery}"
+          </div>
         ) : (
           <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
             <table className="w-full text-left border-collapse">
@@ -104,7 +119,7 @@ export default function Resolved() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {resolvedChats.map((chat) => (
+                {filteredChats.map((chat) => (
                   <tr key={chat.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="py-4 px-6">
                       <div className="flex items-center space-x-3">

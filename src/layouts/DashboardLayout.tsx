@@ -84,10 +84,19 @@ const DashboardLayout = () => {
         </div>
 
         <div className="p-4 space-y-2 mb-2">
-          <button className="flex w-full items-center space-x-3 px-4 py-3 rounded-2xl transition-all duration-200 hover:bg-indigo-800 text-indigo-200 hover:text-white">
+          <NavLink
+            to="/app/settings"
+            className={({ isActive }) =>
+              `flex w-full items-center space-x-3 px-4 py-3 rounded-2xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'hover:bg-indigo-800 text-indigo-200 hover:text-white'
+              }`
+            }
+          >
             <Settings size={20} />
             <span className="font-medium">Settings</span>
-          </button>
+          </NavLink>
           
           <div className="bg-indigo-800/50 rounded-2xl p-4 flex items-center space-x-3 mt-4 border border-indigo-700">
             <div className="w-10 h-10 rounded-full bg-indigo-400 flex items-center justify-center text-white font-bold text-lg shadow-inner uppercase">

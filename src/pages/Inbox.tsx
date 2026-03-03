@@ -8,6 +8,7 @@ export default function Inbox() {
   const { user } = useAuth();
   
   const [chats, setChats] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeChat, setActiveChat] = useState<any | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -18,7 +19,6 @@ export default function Inbox() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. Fetch Chats (HIDING RESOLVED)
   const fetchChats = async () => {
     try {
       const { data, error } = await supabase
@@ -28,13 +28,12 @@ export default function Inbox() {
           contacts (id, name, phone_number, is_blocked),
           profiles (id, first_name, last_name)
         `)
-        .neq('status', 'resolved') // HIDE RESOLVED CHATS
+        .neq('status', 'resolved')
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
       setChats(data || []);
       
-      // Auto-select first chat if none selected
       if (data && data.length > 0 && !activeChat) {
         setActiveChat(data[0]);
       } else if (data && data.length === 0) {
@@ -48,7 +47,6 @@ export default function Inbox() {
     }
   };
 
-  // 2. Fetch Messages for Active Chat
   const fetchMessages = async (chatId: string) => {
     setLoadingMessages(true);
     try {
@@ -69,7 +67,6 @@ export default function Inbox() {
     }
   };
 
-  // Initial load and real-time subscription
   useEffect(() => {
     fetchChats();
 
@@ -100,7 +97,6 @@ export default function Inbox() {
     }, 100);
   };
 
-  // 3. Send Message
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !activeChat || !user) return;
     
@@ -133,7 +129,6 @@ export default function Inbox() {
     }
   };
 
-  // 4. Update Chat Status
   const updateChatStatus = async (status: string) => {
     if (!activeChat) return;
     try {
@@ -145,7 +140,6 @@ export default function Inbox() {
       if (error) throw error;
       showSuccess(`Chat marked as ${status}`);
       
-      // If resolved, clear active chat because it will be removed from the list
       if (status === 'resolved') {
         setActiveChat(null);
       } else {
@@ -158,36 +152,13 @@ export default function Inbox() {
     }
   };
 
-  // 5. Toggle Block Contact
-  const toggleBlockStatus = async () => {
-    if (!activeChat) return;
-    const newStatus = !activeChat.contacts.is_blocked;
-    try {
-      const { error } = await supabase
-        .from('contacts')
-        .update({ is_blocked: newStatus })
-        .eq('id', activeChat.contacts.id);
-      
-      if (error) throw error;
-      showSuccess(newStatus ? 'Contact blocked' : 'Contact unblocked');
-      
-      setActiveChat({
-        ...activeChat,
-        contacts: { ...activeChat.contacts, is_blocked: newStatus }
-      });
-      fetchChats();
-    } catch (err: any) {
-      showError('Failed to update contact');
-    }
-  };
-
   const seedDemoData = async () => {
     if (!user) return showError("Must be logged in");
     try {
       showSuccess("Generating demo data...");
       
       const { data: contact, error: contactErr } = await supabase.from('contacts')
-        .insert({ phone_number: '+1 555 ' + Math.floor(Math.random() * 10000), name: 'Demo Customer' })
+        .insert({ phone_number: '+1 555 ' + Math.floor(Math.random() * 10000), name: 'Demo Customer ' + Math.floor(Math.random() * 100) })
         .select().single();
       if (contactErr) throw contactErr;
 
@@ -214,6 +185,14 @@ export default function Inbox() {
     const date = new Date(isoString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  // Filter chats based on search query
+  const filteredChats = chats.filter(chat => {
+    const term = searchQuery.toLowerCase();
+    const nameMatch = chat.contacts?.name?.toLowerCase().includes(term);
+    const phoneMatch = chat.contacts?.phone_number?.toLowerCase().includes(term);
+    return nameMatch || phoneMatch;
+  });
 
   if (loadingChats) {
     return (
@@ -261,43 +240,49 @@ export default function Inbox() {
             <input 
               type="text" 
               placeholder="Search chats..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
             />
           </div>
         </div>
         
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {chats.map(chat => (
-            <div 
-              key={chat.id}
-              onClick={() => setActiveChat(chat)}
-              className={`p-3 rounded-2xl cursor-pointer transition-all ${
-                activeChat?.id === chat.id 
-                  ? 'bg-indigo-50 border border-indigo-100 shadow-sm' 
-                  : 'hover:bg-slate-100 border border-transparent'
-              }`}
-            >
-              <div className="flex justify-between items-start mb-1">
-                <h3 className={`font-semibold text-sm ${activeChat?.id === chat.id ? 'text-indigo-900' : 'text-slate-800'}`}>
-                  {chat.contacts?.name || chat.contacts?.phone_number}
-                </h3>
-                <span className="text-xs text-slate-400">{formatTime(chat.updated_at)}</span>
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <span className={`text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full ${
-                  chat.status === 'open' ? 'text-green-600 bg-green-100' : 
-                  chat.status === 'resolved' ? 'text-slate-400 bg-slate-100' : 'text-orange-600 bg-orange-100'
-                }`}>
-                  {chat.status}
-                </span>
-                {chat.unread_count > 0 && (
-                  <span className="bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
-                    {chat.unread_count}
+          {filteredChats.length === 0 ? (
+            <div className="p-4 text-center text-sm text-slate-500">No chats found for "{searchQuery}"</div>
+          ) : (
+            filteredChats.map(chat => (
+              <div 
+                key={chat.id}
+                onClick={() => setActiveChat(chat)}
+                className={`p-3 rounded-2xl cursor-pointer transition-all ${
+                  activeChat?.id === chat.id 
+                    ? 'bg-indigo-50 border border-indigo-100 shadow-sm' 
+                    : 'hover:bg-slate-100 border border-transparent'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-1">
+                  <h3 className={`font-semibold text-sm ${activeChat?.id === chat.id ? 'text-indigo-900' : 'text-slate-800'}`}>
+                    {chat.contacts?.name || chat.contacts?.phone_number}
+                  </h3>
+                  <span className="text-xs text-slate-400">{formatTime(chat.updated_at)}</span>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <span className={`text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full ${
+                    chat.status === 'open' ? 'text-green-600 bg-green-100' : 
+                    chat.status === 'resolved' ? 'text-slate-400 bg-slate-100' : 'text-orange-600 bg-orange-100'
+                  }`}>
+                    {chat.status}
                   </span>
-                )}
+                  {chat.unread_count > 0 && (
+                    <span className="bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
+                      {chat.unread_count}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 

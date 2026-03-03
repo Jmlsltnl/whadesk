@@ -9,6 +9,7 @@ import Inbox from "./pages/Inbox";
 import Resolved from "./pages/Resolved";
 import Agents from "./pages/Agents";
 import Stats from "./pages/Stats";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./components/AuthProvider";
 
@@ -24,6 +25,7 @@ const AppRoutes = () => {
         <Route path="resolved" element={<Resolved />} />
         <Route path="stats" element={<Stats />} />
         <Route path="agents" element={<Agents />} />
+        <Route path="settings" element={<Settings />} />
         <Route path="*" element={<div className="p-8 text-slate-500">Feature coming soon...</div>} />
       </Route>
       <Route path="*" element={<NotFound />} />
