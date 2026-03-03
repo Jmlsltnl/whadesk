@@ -7,6 +7,7 @@ import DashboardLayout from "./layouts/DashboardLayout";
 import Login from "./pages/Login";
 import Inbox from "./pages/Inbox";
 import Resolved from "./pages/Resolved";
+import Snoozed from "./pages/Snoozed";
 import Agents from "./pages/Agents";
 import Stats from "./pages/Stats";
 import Settings from "./pages/Settings";
@@ -23,6 +24,7 @@ const AppRoutes = () => {
         <Route index element={<Navigate to="/app/inbox" replace />} />
         <Route path="inbox" element={<Inbox />} />
         <Route path="resolved" element={<Resolved />} />
+        <Route path="snoozed" element={<Snoozed />} />
         <Route path="stats" element={<Stats />} />
         <Route path="agents" element={<Agents />} />
         <Route path="settings" element={<Settings />} />

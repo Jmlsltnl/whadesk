@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { MessageSquare, BarChart2, Users, Settings, LogOut, CheckCircle2, Lock } from 'lucide-react';
+import { MessageSquare, BarChart2, Users, Settings, LogOut, CheckCircle2, Lock, Clock } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/hooks/use-profile';
 
@@ -45,6 +45,20 @@ const DashboardLayout = () => {
             </NavLink>
 
             <NavLink
+              to="/app/snoozed"
+              className={({ isActive }) =>
+                `flex items-center space-x-3 px-4 py-3 rounded-2xl transition-all duration-200 ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'hover:bg-indigo-800 text-indigo-200 hover:text-white'
+                }`
+              }
+            >
+              <Clock size={20} />
+              <span className="font-medium">Snoozed</span>
+            </NavLink>
+
+            <NavLink
               to="/app/resolved"
               className={({ isActive }) =>
                 `flex items-center space-x-3 px-4 py-3 rounded-2xl transition-all duration-200 ${
@@ -58,7 +72,6 @@ const DashboardLayout = () => {
               <span className="font-medium">Resolved</span>
             </NavLink>
 
-            {/* Admin Only Link: Statistics */}
             {isAdmin ? (
               <NavLink
                 to="/app/stats"
@@ -81,7 +94,6 @@ const DashboardLayout = () => {
               </div>
             )}
 
-            {/* Team Directory: Accessible to all, but only Admins can manage */}
             <NavLink
               to="/app/agents"
               className={({ isActive }) =>

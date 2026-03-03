@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, Paperclip, Ban, CheckCircle, Clock, UserCheck, MessageSquarePlus, Loader2, ChevronDown, StickyNote, MessageSquare } from 'lucide-react';
+import { Search, Send, Paperclip, Ban, CheckCircle, Clock, UserCheck, MessageSquarePlus, Loader2, ChevronDown, StickyNote, MessageSquare, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/components/AuthProvider';
 import { showSuccess, showError } from '@/utils/toast';
@@ -16,6 +16,7 @@ export default function Inbox() {
   
   const [chats, setChats] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
+  const [quickReplies, setQuickReplies] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeChat, setActiveChat] = useState<any | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -61,13 +62,18 @@ export default function Inbox() {
     if (data) setAgents(data);
   };
 
+  const fetchQuickReplies = async () => {
+    const { data } = await supabase.from('quick_replies').select('*');
+    if (data) setQuickReplies(data);
+  };
+
   const fetchMessages = async (chatId: string) => {
     setLoadingMessages(true);
     try {
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .neq('sender_type', 'note') // Hide internal notes from main chat window
+        .neq('sender_type', 'note')
         .eq('chat_id', chatId)
         .order('created_at', { ascending: true });
 
@@ -82,45 +88,12 @@ export default function Inbox() {
     }
   };
 
-  const handleReassign = async (agentId: string) => {
-    if (!activeChat) return;
-    try {
-      const { error } = await supabase
-        .from('chats')
-        .update({ assigned_to: agentId })
-        .eq('id', activeChat.id);
-      
-      if (error) throw error;
-      showSuccess('Conversation reassigned');
-      fetchChats();
-      // Update local active chat state
-      const agent = agents.find(a => a.id === agentId);
-      setActiveChat({
-        ...activeChat,
-        profiles: agent ? { first_name: agent.first_name, last_name: agent.last_name } : null
-      });
-    } catch (err) {
-      showError('Failed to reassign');
-    }
-  };
-
-  const markAsRead = async (chatId: string) => {
-    const chat = chats.find(c => c.id === chatId);
-    if (chat && chat.unread_count > 0) {
-      try {
-        await supabase.from('chats').update({ unread_count: 0 }).eq('id', chatId);
-        setChats(prev => prev.map(c => c.id === chatId ? { ...c, unread_count: 0 } : c));
-      } catch (err) {
-        console.error('Failed to clear unread count', err);
-      }
-    }
-  };
-
   useEffect(() => {
     fetchChats();
     fetchAgents();
+    fetchQuickReplies();
 
-    const channel = supabase.channel('public-changes-v2')
+    const channel = supabase.channel('public-changes-v3')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
         if (activeChat) fetchMessages(activeChat.id);
         fetchChats();
@@ -138,7 +111,12 @@ export default function Inbox() {
   useEffect(() => {
     if (activeChat) {
       fetchMessages(activeChat.id);
-      markAsRead(activeChat.id);
+      // Mark as read logic
+      if (activeChat.unread_count > 0) {
+        supabase.from('chats').update({ unread_count: 0 }).eq('id', activeChat.id).then(() => {
+          setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, unread_count: 0 } : c));
+        });
+      }
     }
   }, [activeChat?.id]);
 
@@ -191,7 +169,7 @@ export default function Inbox() {
       if (error) throw error;
       showSuccess(`Chat marked as ${status}`);
       
-      if (status === 'resolved') {
+      if (status === 'resolved' || status === 'snoozed') {
         setActiveChat(null);
       } else {
         setActiveChat({ ...activeChat, status });
@@ -228,33 +206,6 @@ export default function Inbox() {
     }
   };
 
-  const seedDemoData = async () => {
-    if (!user) return showError("Must be logged in");
-    try {
-      showSuccess("Generating demo data...");
-      
-      const { data: contact, error: contactErr } = await supabase.from('contacts')
-        .insert({ phone_number: '+1 555 ' + Math.floor(Math.random() * 10000), name: 'Demo Customer ' + Math.floor(Math.random() * 100) })
-        .select().single();
-      if (contactErr) throw contactErr;
-
-      const { data: chat, error: chatErr } = await supabase.from('chats')
-        .insert({ contact_id: contact.id, assigned_to: user.id, unread_count: 1 })
-        .select().single();
-      if (chatErr) throw chatErr;
-
-      await supabase.from('messages').insert([
-        { chat_id: chat.id, content: 'Hello, I have a question about my account.', sender_type: 'customer' }
-      ]);
-
-      showSuccess("Demo data injected!");
-      fetchChats();
-    } catch (error: any) {
-      console.error(error);
-      showError("Failed to seed data.");
-    }
-  };
-
   const formatTime = (isoString: string) => {
     if (!isoString) return '';
     const date = new Date(isoString);
@@ -265,10 +216,12 @@ export default function Inbox() {
     const term = searchQuery.toLowerCase();
     const nameMatch = chat.contacts?.name?.toLowerCase().includes(term);
     const phoneMatch = chat.contacts?.phone_number?.toLowerCase().includes(term);
-    return (nameMatch || phoneMatch) && chat.status === 'open'; // Default view: Open only
+    return (nameMatch || phoneMatch) && chat.status === 'open';
   });
 
-  const snoozedChatsCount = chats.filter(c => c.status === 'snoozed').length;
+  const handleQuickReply = (content: string) => {
+    setNewMessage(content);
+  };
 
   if (loadingChats) {
     return (
@@ -285,17 +238,6 @@ export default function Inbox() {
       <div className="w-80 flex flex-col border-r border-slate-100 bg-slate-50/50">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center">
           <h2 className="text-xl font-bold text-slate-800">Inbox</h2>
-          <div className="flex items-center space-x-2">
-            {snoozedChatsCount > 0 && (
-              <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-bold flex items-center space-x-1">
-                <Clock size={10} />
-                <span>{snoozedChatsCount} Snoozed</span>
-              </span>
-            )}
-            <button onClick={seedDemoData} className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md hover:bg-indigo-100">
-              + Demo
-            </button>
-          </div>
         </div>
         <div className="p-4 border-b border-slate-100">
           <div className="relative">
@@ -361,10 +303,7 @@ export default function Inbox() {
               </div>
               <div>
                 <h2 className="font-bold text-slate-800">{activeChat.contacts?.name || 'Unknown Contact'}</h2>
-                <div className="flex items-center space-x-2">
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Online via WhatsApp</p>
-                </div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Online via WhatsApp</p>
               </div>
             </div>
           </div>
@@ -373,10 +312,6 @@ export default function Inbox() {
             {loadingMessages ? (
               <div className="flex justify-center items-center h-full">
                 <Loader2 className="animate-spin text-slate-300" size={32} />
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="flex justify-center items-center h-full text-slate-400 text-sm">
-                No messages yet. Send one below!
               </div>
             ) : (
               messages.map(msg => {
@@ -402,43 +337,58 @@ export default function Inbox() {
 
           <div className="p-4 bg-white border-t border-slate-100 z-10">
             {activeChat.contacts?.is_blocked ? (
-              <div className="bg-red-50 text-red-600 p-4 rounded-2xl flex items-center justify-between space-x-2 border border-red-100">
-                <div className="flex items-center space-x-2">
-                  <Ban size={18} />
-                  <span className="font-medium">You have blocked this contact.</span>
-                </div>
-                <button 
-                  onClick={toggleBlockStatus}
-                  className="px-4 py-2 bg-white text-red-600 border border-red-200 rounded-xl hover:bg-red-50 text-sm font-bold shadow-sm transition-colors"
-                >
-                  Unblock
-                </button>
+              <div className="bg-red-50 text-red-600 p-4 rounded-2xl flex items-center justify-between space-x-2 border border-red-100 text-sm font-bold">
+                Blocked Contact
               </div>
             ) : (
-              <div className="flex items-end space-x-3 bg-slate-50 p-2 rounded-2xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-sm">
-                <button className="p-2.5 text-slate-400 hover:text-indigo-600 transition-colors">
-                  <Paperclip size={20} />
-                </button>
-                <textarea 
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  placeholder="Type a message... (Press Enter to send)" 
-                  className="flex-1 max-h-32 min-h-[44px] bg-transparent resize-none py-3 focus:outline-none text-sm text-slate-800"
-                  rows={1}
-                />
-                <button 
-                  onClick={handleSendMessage}
-                  disabled={isSending || !newMessage.trim()}
-                  className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSending ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
-                </button>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="text-xs font-bold text-indigo-600 flex items-center space-x-1 px-3 py-1 bg-indigo-50 rounded-full hover:bg-indigo-100 transition-colors">
+                      <Zap size={14} />
+                      <span>Quick Replies</span>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-64 rounded-xl border-slate-200 shadow-xl max-h-60 overflow-y-auto">
+                      {quickReplies.length === 0 ? (
+                        <div className="p-4 text-xs text-slate-400 text-center">No quick replies found</div>
+                      ) : (
+                        quickReplies.map(reply => (
+                          <DropdownMenuItem 
+                            key={reply.id} 
+                            onClick={() => handleQuickReply(reply.content)}
+                            className="flex flex-col items-start space-y-1 p-3 cursor-pointer"
+                          >
+                            <span className="font-bold text-slate-800">{reply.title}</span>
+                            <span className="text-[10px] text-slate-400 truncate w-full">{reply.content}</span>
+                          </DropdownMenuItem>
+                        ))
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                
+                <div className="flex items-end space-x-3 bg-slate-50 p-2 rounded-2xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-sm">
+                  <textarea 
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    placeholder="Type a message..." 
+                    className="flex-1 max-h-32 min-h-[44px] bg-transparent resize-none py-3 px-2 focus:outline-none text-sm text-slate-800"
+                    rows={1}
+                  />
+                  <button 
+                    onClick={handleSendMessage}
+                    disabled={isSending || !newMessage.trim()}
+                    className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {isSending ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -449,10 +399,9 @@ export default function Inbox() {
         </div>
       )}
 
-      {/* COLUMN 3: Right Sidebar (Tabs: Info / Notes) */}
+      {/* Right Sidebar */}
       {activeChat && (
         <div className="w-80 bg-slate-50/50 border-l border-slate-100 flex flex-col z-10 shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.02)] overflow-hidden">
-          
           <div className="flex border-b border-slate-100">
             <button 
               onClick={() => setRightTab('info')}
@@ -461,7 +410,7 @@ export default function Inbox() {
               }`}
             >
               <MessageSquare size={14} />
-              <span>Contact Info</span>
+              <span>Info</span>
             </button>
             <button 
               onClick={() => setRightTab('notes')}
@@ -470,7 +419,7 @@ export default function Inbox() {
               }`}
             >
               <StickyNote size={14} />
-              <span>Internal Notes</span>
+              <span>Notes</span>
             </button>
           </div>
 
@@ -485,44 +434,6 @@ export default function Inbox() {
                   <p className="text-slate-500 text-sm">{activeChat.contacts?.phone_number}</p>
                 </div>
 
-                {/* Re-assignment Dropdown */}
-                <div>
-                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Assigned Agent</h3>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="w-full flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:border-indigo-500 transition-colors shadow-sm text-left">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs uppercase">
-                          {activeChat.profiles?.first_name?.charAt(0) || 'U'}
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">
-                            {activeChat.profiles ? `${activeChat.profiles.first_name} ${activeChat.profiles.last_name || ''}` : 'Unassigned'}
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronDown size={16} className="text-slate-400" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64 rounded-xl border-slate-200 shadow-xl p-1">
-                      {agents.map(agent => (
-                        <DropdownMenuItem 
-                          key={agent.id}
-                          onClick={() => handleReassign(agent.id)}
-                          className="flex items-center space-x-3 p-2 cursor-pointer hover:bg-indigo-50 rounded-lg"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 text-xs font-bold uppercase">
-                            {agent.first_name.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-slate-800">{agent.first_name} {agent.last_name}</p>
-                          </div>
-                          {activeChat.assigned_to === agent.id && <UserCheck size={14} className="ml-auto text-indigo-600" />}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                {/* Status Controls */}
                 <div>
                   <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Conversation Status</h3>
                   <div className="grid grid-cols-2 gap-2">
@@ -535,32 +446,12 @@ export default function Inbox() {
                     </button>
                     <button 
                       onClick={() => updateChatStatus('snoozed')}
-                      disabled={activeChat.status === 'snoozed'}
-                      className={`flex flex-col items-center justify-center py-3 border rounded-xl transition-colors shadow-sm ${
-                        activeChat.status === 'snoozed' 
-                          ? 'bg-orange-50 border-orange-200 text-orange-600' 
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-orange-500 hover:text-orange-600 hover:bg-orange-50'
-                      }`}
+                      className="flex flex-col items-center justify-center py-3 border rounded-xl transition-colors shadow-sm bg-white border-slate-200 text-slate-600 hover:border-orange-500 hover:text-orange-600 hover:bg-orange-50"
                     >
                       <Clock size={20} className="mb-1" />
                       <span className="text-[10px] font-bold uppercase">Snooze</span>
                     </button>
                   </div>
-                </div>
-                
-                {/* Danger Zone */}
-                <div className="pt-6 border-t border-slate-200">
-                  <button 
-                    onClick={toggleBlockStatus}
-                    className={`w-full flex items-center justify-center space-x-2 py-3 rounded-xl transition-colors text-[10px] font-bold uppercase tracking-wider ${
-                      activeChat.contacts?.is_blocked
-                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100'
-                    }`}
-                  >
-                    <Ban size={16} />
-                    <span>{activeChat.contacts?.is_blocked ? 'Unblock Contact' : 'Block Contact'}</span>
-                  </button>
                 </div>
               </div>
             ) : (
